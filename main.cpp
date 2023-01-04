@@ -309,14 +309,16 @@ Mat processImage(const string& imgPath, const cmdArgs& args) {
 		}
 	}
 
+	// TEST MARK ON IMAGES
+	// cout << "drawing rectangle on image" << endl;
+	// cv::rectangle(imgOut, bndRect, cv::Scalar(0,0,0), 2);
+	
+
 	// resize output if necessary
 	if (args.scale != 1.0) {
 		if(log) {cout << "resizing image" << endl;}
 		cv::resize(imgOut, imgOut, Size(), args.scale, args.scale, cv::INTER_AREA);
 	}
-
-	// TEST MARK ON IMAGES
-	//cv::rectangle(imgOut, bndRect, cv::Scalar(0,0,0), 2);
 
 	return imgOut;
 }

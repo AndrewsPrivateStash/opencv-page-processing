@@ -1,0 +1,9 @@
+# ignore everything
+*
+
+# except
+!.gitignore
+!main.cpp
+!CMakeLists.txt
+!Makefile
+!notes.txt

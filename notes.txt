@@ -1,0 +1,33 @@
+opencv Notes:
+
+Linux OpenCV Install Process:
+nav to directory, I chose: ~/programs
+$ wget -O opencv.zip https://github.com/opencv/opencv/archive/4.x.zip
+$ unzip opencv.zip
+$ rm <4.x.x>.zip
+$ mv opencv-4.x opencv
+$ mkdir build && cd build
+
+//cmake with proper flags (static libs, and proj install dir):
+$ cmake ../opencv -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX=/home/andrew/code/c++/src/missal_image_proc/deps
+$ make -j4
+$ cmake --build . --target install
+
+
+
+
+//cmake build
+https://stackoverflow.com/questions/66004186/how-can-i-use-opencv-without-running-make-install
+
+The solution would be to set CMAKE_INSTALL_PREFIX to a specific location:
+
+    # in opencv/build
+    cmake .. -DCMAKE_INSTALL_PREFIX=/home/user/path/to/deps/
+    cmake --build . --target install
+
+Then, configure your project with the same prefix:
+
+    # in your project/build
+    cmake .. -DCMAKE_PREFIX_PATH=/home/user/path/to/deps/
+
+In your cmake files, simply use find_package(OpenCV)

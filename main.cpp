@@ -9,6 +9,9 @@
 	(B). Convert back the binary image to its previous format and convert the converted grayscale image back to RGB.
 	(C). Inscribe the converted cropped image into a white background image with specific dimensions.
 
+	ToDo:
+		- deal with rotation
+
 */
 
 #include "opencv2/core.hpp"

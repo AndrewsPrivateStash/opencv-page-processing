@@ -10,7 +10,9 @@
 	(C). Inscribe the converted cropped image into a white background image with specific dimensions.
 
 	ToDo:
-		- deal with rotation
+		- normalize pages ( static margins, dynamic resizing to printed area )
+		- deal with rotation (warping --3-space problem may not be tractable)
+		- add options for margin buffers and static output size for page prep
 
 */
 
@@ -139,7 +141,7 @@ cmdArgs parseArgs(int argc, char** argv) {
 	parser.about("Missal Image Processor v1.0");
 
 	// no argument case
-	if (argc < 2) {parser.printMessage(); exit(1);}
+	if (argc < 2) {parser.printMessage(); exit(0);}
 
 	// help case
 	if (parser.has("help")){
@@ -310,7 +312,7 @@ Mat processImage(const string& imgPath, const cmdArgs& args) {
 	// resize output if necessary
 	if (args.scale != 1.0) {
 		if(log) {cout << "resizing image" << endl;}
-		cv::resize(imgOut, imgOut, Size(), args.scale, args.scale, cv::INTER_AREA);	//temp
+		cv::resize(imgOut, imgOut, Size(), args.scale, args.scale, cv::INTER_AREA);
 	}
 
 	// TEST MARK ON IMAGES

@@ -1,7 +1,6 @@
 #pragma once
 
-#include <iostream>
-#include <vector>
+// core includes many stdlib headers
 #include "opencv2/core.hpp"
 
 // STRUCTS //

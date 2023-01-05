@@ -16,6 +16,8 @@ $ cmake --build . --target install
 
 
 
+Project install versus system install. Post below with a few pointers:
+
 //cmake build
 https://stackoverflow.com/questions/66004186/how-can-i-use-opencv-without-running-make-install
 

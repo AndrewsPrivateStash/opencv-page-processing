@@ -1,6 +1,5 @@
 
 #include "utils.hpp"
-#include <cmath>
 
 using std::vector, std::string, std::cout, std::endl;
 
@@ -16,17 +15,12 @@ vector<string> getDirFiles(const string& dirPath) {
 	return outFiles;   
 }
 
-// check progress of directory process
-float checkProgress(int tot, int cur) {
-	return (float)cur / (float)tot;
-}
-
 // print progress bar to stdout buffer and flush
 void printProgress(int tot, int cur) {
     const int SYMBOL_WIDTH = 20;
     const char SYMBOL = '#';
 
-    float progress = checkProgress(tot, cur);
+    float progress = (float)cur / (float)tot;
     cout << "\r[";
     int symCnt = std::ceil(SYMBOL_WIDTH * progress);
     cout << string(symCnt, '#') << string(SYMBOL_WIDTH - symCnt, ' ') << ']';

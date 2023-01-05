@@ -10,13 +10,11 @@
 #include <iostream>
 #include <vector>
 #include <filesystem>
+#include <cmath>
 
 
 // grab all of the .jpg files found in the path
 std::vector<std::string> getDirFiles(const std::string&);
-
-// produce a completion percentage string from the passed counts
-float checkProgress(int, int);
 
 // print formatted progress bar
 void printProgress(int, int);

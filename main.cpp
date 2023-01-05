@@ -11,8 +11,9 @@
 
 	ToDo:
 		- normalize pages ( static margins, dynamic resizing to printed area )
-		- deal with rotation (warping --3-space problem may not be tractable)
 		- add options for margin buffers and static output size for page prep
+		- deal with rotation (deskew image subject to constraints)
+		- de-warping --3-space problem (may not be tractable)
 
 */
 
@@ -21,35 +22,13 @@
 #include "opencv2/highgui.hpp"
 #include "opencv2/imgproc.hpp"
 #include "opencv2/photo.hpp"
-#include <iostream>
-#include <filesystem>
-#include <chrono>
+
+#include "main.hpp"
+#include "utils.hpp"
 
 using std::cout, std::endl, std::vector, std::string;
 using cv::Mat, cv::Rect, cv::Point, cv::Size;
 namespace fs = std::filesystem;
-
-struct cmdArgs{
-	string img, outimg, dir, outdir;
-	float scale;
-	bool centered, display, denoise;
-};
-
-struct preprocParams {
-	Size gBlurSize;
-	int thr, thrMax;
-	Size kernalSize;
-};
-
-// prototypes
-cmdArgs parseArgs(int, char**);
-Mat preProcessImage(const Mat&, preprocParams, bool); // image prep for bounding
-Mat processImage(const string&, const cmdArgs&); // full processing procedure
-Rect getBounds(const Mat&, int = 20);	// find greatest bounding rectangle
-vector<string> getDirFiles(const string&);
-string checkProgress(int, int);
-string getElapsedTime(int);
-void cleanImage(Mat &);	// denoise the image of artificats
 
 
 int main(int argc, char** argv) { 
@@ -138,7 +117,7 @@ cmdArgs parseArgs(int argc, char** argv) {
 	;
 
 	cv::CommandLineParser parser(argc, argv, keys);
-	parser.about("Missal Image Processor v1.0");
+	parser.about("Missal Image Processor v0.1");
 
 	// no argument case
 	if (argc < 2) {parser.printMessage(); exit(0);}
@@ -146,17 +125,19 @@ cmdArgs parseArgs(int argc, char** argv) {
 	// help case
 	if (parser.has("help")){
     	parser.printMessage();
-    	exit(1);
+    	exit(0);
 	}
 
-	string imgFileF = parser.get<string>("i");
-	string outFileF = parser.get<string>("io");
-	string dirPathF = parser.get<string>("d");
-	string outdirPathF = parser.get<string>("do");
-	float scaleFactF = parser.get<float>("s");
-	bool centeredF = parser.get<bool>("c");
-	bool displayF = parser.get<bool>("p");
-	bool denoiseF = parser.get<bool>("n");
+	cmdArgs inArgs;
+
+	inArgs.img = parser.get<string>("i");
+	inArgs.outimg = parser.get<string>("io");
+	inArgs.dir = parser.get<string>("d");
+	inArgs.outdir = parser.get<string>("do");
+	inArgs.scale = parser.get<float>("s");
+	inArgs.centered = parser.get<bool>("c");
+	inArgs.display = parser.get<bool>("p");
+	inArgs.denoise = parser.get<bool>("n");  
 
 	if (!parser.check()) {
 		cout << "command line parsing error. Usage:\n";
@@ -165,12 +146,12 @@ cmdArgs parseArgs(int argc, char** argv) {
 	}
 
 	string feedbackStr {};
-	if (imgFileF != "") {
-		feedbackStr.append("using image: " + imgFileF + '\n');
-		feedbackStr.append("output image: " + outFileF + '\n');
-	} else if (dirPathF != "") {
-		feedbackStr.append("using dir: " + dirPathF + '\n');
-		feedbackStr.append("output dir: " + outdirPathF + '\n');
+	if (inArgs.img != "") {
+		feedbackStr.append("using image: " + inArgs.img + '\n');
+		feedbackStr.append("output image: " + inArgs.outimg + '\n');
+	} else if (inArgs.dir != "") {
+		feedbackStr.append("using dir: " + inArgs.dir + '\n');
+		feedbackStr.append("output dir: " + inArgs.outdir + '\n');
 	} else {
 		cout << "no argument received and no default set, terminating.\n";
 		exit(1);
@@ -178,13 +159,13 @@ cmdArgs parseArgs(int argc, char** argv) {
 
 	cout << feedbackStr;
 	cout << std::fixed; cout.precision(2);
-	cout << "with scale: " << scaleFactF << endl;
+	cout << "with scale: " << inArgs.scale << endl;
 	cout << std::boolalpha;
-	cout << "denoise crop: " << denoiseF << endl;
-	cout << "centered output: " << centeredF << endl;
-	cout << "display output: " << displayF << endl;
+	cout << "denoise crop: " << inArgs.denoise << endl;
+	cout << "centered output: " << inArgs.centered << endl;
+	cout << "display output: " << inArgs.display << endl;
 
-	return cmdArgs {imgFileF, outFileF, dirPathF, outdirPathF, scaleFactF, centeredF, displayF, denoiseF};
+	return inArgs;
 }
 
 //pre process the input image preparing it for boundary identification
@@ -197,7 +178,7 @@ Mat preProcessImage(const Mat& inMat, preprocParams params, bool log) {
 	cv::GaussianBlur(imgProcess, imgProcess, params.gBlurSize, 0);
 	cv::threshold(imgProcess, imgProcess, params.thr, params.thrMax, cv::THRESH_BINARY_INV + cv::THRESH_OTSU);
 	if(log) {cout << "thresholding image" << endl;}
-	Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, params.kernalSize);
+	Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, params.kernelSize);
 	if(log) {cout << "dilating image" << endl;}
 	cv::dilate(imgProcess,imgProcess,kernel);
 
@@ -220,28 +201,34 @@ int calcBuffer(Rect rect, int ph, int pw, int startBuff) {
 	return std::min(lstDist * 2, startBuff);
 }
 
-//from the contours grab the global bounding rectangle
-Rect getBounds(const Mat &inImg, int bufferPix) {
-
-	if (inImg.dims > 2) {
+// get the contours of an image
+contourResults getContours(const cv::Mat& img) {
+	// check channel depth
+	if (img.dims > 2) {
 		cout << "getBounds received an image with color information, convert to single channel first\n";
 		exit(1);
 	}
 
-	// find contours 
-	vector<vector<Point>> contours;
-	vector<cv::Vec4i> hierarchy;
-	cv::findContours(inImg, contours, hierarchy, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+	contourResults res;
 
-	vector<Point> flatPoints;
+	// find contours 
+	cv::findContours(img, res.contours, res.hierarchy, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+
 	// flatten contours
-	for (auto c : contours) {
+	for (auto c : res.contours) {
 		for (auto p : c) {
-			flatPoints.push_back(p);
+			res.flatPoints.push_back(p);
 		}
 	}
 
-	Rect bndRect = cv::boundingRect(flatPoints);
+	return res;
+}	
+
+//from the contours grab the global bounding rectangle
+Rect getGlbBounds(const Mat &inImg, int bufferPix) {
+
+	contourResults cntrs = getContours(inImg);
+	Rect bndRect = cv::boundingRect(cntrs.flatPoints);
 	int useBuffer = calcBuffer(bndRect, inImg.rows, inImg.cols, bufferPix);
 
 	// shift rect by x + B/2, y + B/2, then enlarge by Size(B, B) --center expand
@@ -249,6 +236,10 @@ Rect getBounds(const Mat &inImg, int bufferPix) {
 	bndRect += Size(useBuffer, useBuffer);	// expand to the SE
 
 	return bndRect;
+}
+
+cv::RotatedRect getMinRotatedRect(const cv::Mat& img) {
+	return cv::RotatedRect {};
 }
 
 // denoise the image
@@ -261,19 +252,19 @@ Mat processImage(const string& imgPath, const cmdArgs& args) {
 	bool log = args.img != "";
 	
 	// load image
-	if(log) {cout << "reading image" << endl;}
+	if(log) {cout << "loading image" << endl;}
 	Mat img = cv::imread(imgPath, cv::IMREAD_COLOR);
 	if(img.empty()) {
-        cout << "Could not read the image: " << imgPath << endl;
+        cout << "Could not load the image: " << imgPath << endl;
         exit(1);
     }
 
 	if(log) {cout << "pre-processing image" << endl;}
 	Mat procImg = preProcessImage(img, preprocParams {Size(7,7), 150, 255, Size(5,15)}, log);
 
-	// get the contour exterior bounding rectangle
+	// get the global exterior bounding rectangle
 	if(log) {cout << "finding external boundary" << endl;}
-	Rect bndRect = getBounds(procImg);
+	Rect bndRect = getGlbBounds(procImg);
 	if(log) {cout << "bound rect size: " << bndRect.size() << endl;}
 
 	// crop original image to bounding
@@ -321,42 +312,4 @@ Mat processImage(const string& imgPath, const cmdArgs& args) {
 	}
 
 	return imgOut;
-}
-
-// get jpeg files in the path
-vector<string> getDirFiles(const string& dirPath) {
-	vector<string> outFiles;
-	for (const auto & entry : std::filesystem::directory_iterator(dirPath)) {
-		string fileStr = entry.path().filename();
-		if (fileStr.find(".jpg") != std::string::npos) {
-			outFiles.push_back(fileStr);
-		}
-	}
-	return outFiles;   
-}
-
-// check progress of directory process
-string checkProgress(int tot, int cur) {
-	float pct = (float)cur / (float)tot * 100.0;
-	std::stringstream stream;
-	stream << std::fixed << std::setprecision(0) << pct << "%";
-	return stream.str();
-}
-
-// calculate elapsed time from milliseconds
-string getElapsedTime(int milis) {
-
-	int rem = milis;
-	int hours = (milis / (1000 * 60 * 60)); rem -= hours * 60 * 60 * 1000;
-	int min = (rem / (1000 * 60)); rem -= min * 60 * 1000;
-	int sec = (rem / 1000); rem -= sec * 1000;
-
-	std::stringstream outStr;
-	outStr << std::setw(2) << std::setfill('0') << hours << ":";
-	outStr << std::setw(2) << std::setfill('0') << min << ":";
-	outStr << std::setw(2) << std::setfill('0') << sec << ":";
-	outStr << std::setw(3) << std::setfill('0') << rem;
-
-	return outStr.str();
-
 }

@@ -4,6 +4,9 @@
 # except
 !.gitignore
 !main.cpp
+!main.hpp
+!utils.cpp
+!utils.hpp
 !CMakeLists.txt
 !Makefile
 !notes.txt

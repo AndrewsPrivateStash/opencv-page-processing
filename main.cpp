@@ -88,12 +88,10 @@ int main(int argc, char** argv) {
 
 			// progress
 			cnt++;
-			if (cnt % pollFreq == 0) {
-				string pct = checkProgress(totalFiles, cnt);
-				cout << ".." << pct; cout.flush();
-			}
+			if (cnt % pollFreq == 0) { printProgress(totalFiles, cnt); }
 		}
 	}
+
 	auto finishTime = std::chrono::high_resolution_clock::now();
 	string elapsed = getElapsedTime(std::chrono::duration_cast<std::chrono::milliseconds>(finishTime - startTime).count());
 	cout << "\nfinished, elapsed time: " << elapsed << endl;
@@ -108,7 +106,7 @@ cmdArgs parseArgs(int argc, char** argv) {
 	"{ help h usage ? || $ mImgProc [-i<image.jpg>] [-io=out.jpg] [-d=DIR] [-do=out]..}"
     "{ i img || single image path to process }"
 	"{ io imgout |out.jpg| path for single output image }"
-	"{ d dir || directory to process }"
+	"{ d dir || directory to process (abs path) }"
 	"{ do dirout |out| output directory to store processed images }"
 	"{ s scale |1.0| scale factor of output image (resize) }"
 	"{ c centered |false| center image in output (true), default retains position }"
